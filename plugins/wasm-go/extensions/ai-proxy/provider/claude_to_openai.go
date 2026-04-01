@@ -792,14 +792,15 @@ func (c *ClaudeToOpenAIConverter) buildClaudeStreamResponse(ctx wrapper.HttpCont
 		log.Debugf("[OpenAI->Claude] Generated message_delta event with usage and stop_reason")
 		responses = append(responses, messageDelta)
 
-		// Send message_stop after combined message_delta
-		if !c.messageStopSent {
-			c.messageStopSent = true
-			log.Debugf("[OpenAI->Claude] Generated message_stop event")
-			responses = append(responses, &claudeTextGenStreamResponse{
-				Type: "message_stop",
-			})
-		}
+	}
+
+	// Send message_stop after combined message_delta
+	if hasFinishReason {
+		c.messageStopSent = true
+		log.Debugf("[OpenAI->Claude] Generated message_stop event")
+		responses = append(responses, &claudeTextGenStreamResponse{
+			Type: "message_stop",
+		})
 	}
 
 	return responses
