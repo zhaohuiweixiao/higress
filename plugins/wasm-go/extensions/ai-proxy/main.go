@@ -80,6 +80,8 @@ var (
 		// Qwen style
 		{provider.PathQwenV1Reranks, provider.ApiNameQwenV1Rerank},
 		{provider.PathQwenV1Conversations, provider.ApiNameQwenV1Conversations},
+		// CMSS style
+		{provider.PathCMSSBatchChatCompletion, provider.ApiNameBatchChatCompletion},
 	}
 	pathPatternToApiName = []pair[*regexp.Regexp, provider.ApiName]{
 		// OpenAI style

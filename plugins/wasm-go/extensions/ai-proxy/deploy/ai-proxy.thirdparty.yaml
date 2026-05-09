@@ -1,0 +1,56 @@
+---
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: ai-proxy-thirdparty
+  namespace: ai-gateway
+  annotations:
+    higress.io/wasm-plugin-description: Convert request/response headers, request
+      query parameters, and request/response body parameters.
+    higress.io/wasm-plugin-icon: https://img.alicdn.com/imgextra/i3/O1CN01bAFa9k1t1gdQcVTH0_!!6000000005842-2-tps-42-42.png
+    higress.io/wasm-plugin-title: AI-proxy
+  labels:
+    higress.io/resource-definer: higress
+    higress.io/wasm-plugin-built-in: "true"
+    higress.io/wasm-plugin-category: ai-proxy
+    higress.io/wasm-plugin-name: ai-proxy
+spec:
+  phase: UNSPECIFIED_PHASE
+  failStrategy: FAIL_CLOSE
+  priority: 318
+  imagePullPolicy: UNSPECIFIED_POLICY
+  imagePullSecret: nexus-registry-secret
+  defaultConfigDisable: false
+  defaultConfig:
+    providers:
+    - apiTokens:
+      - xxxxxxxx
+      failover:
+        enabled: false
+      id: volcengine
+      retryOnFailure:
+        enabled: false
+      doubaoEndpointMapping:
+        "doubao-seed-1-8-251228:cmss/v1/batchchatcompletion": "ep-bi-20260417144438-rx4sm"
+      type: doubao
+    - apiTokens:
+      - xxxxxxxx
+      failover:
+        enabled: false 
+      id: aliyun
+      retryOnFailure:
+        enabled: false 
+      type: qwen
+      qwenEnableCompatible: true
+  matchRules:
+  - config:
+      activeProviderId: volcengine
+    configDisable: false
+    ingress:
+    - ai-route-volcengine
+  - config:
+      activeProviderId: aliyun
+    configDisable: false
+    ingress:
+    - ai-route-aliyun
+  url: oci://nexus.cmss.com:8086/ai-gateway/higress-plugins/ai-proxy:1.0.0-2026042203

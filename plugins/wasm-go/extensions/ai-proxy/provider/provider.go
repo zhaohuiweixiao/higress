@@ -67,6 +67,8 @@ const (
 	ApiNameRetrieveVideoContent                 ApiName = "openai/v1/retrievevideocontent"
 	ApiNameKlingImageToVideo                    ApiName = "kling/v1/image2video"
 	ApiNameKlingRetrieveImageVideo              ApiName = "kling/v1/retrieveimagevideo"
+	// cmss extension
+	ApiNameBatchChatCompletion ApiName = "cmss/v1/batchchatcompletion"
 
 	// TODO: 以下是一些非标准的API名称，需要进一步确认是否支持
 	ApiNameCohereV1Rerank              ApiName = "cohere/v1/rerank"
@@ -126,6 +128,9 @@ const (
 	// Qwen
 	PathQwenV1Reranks       = "/v1/reranks"
 	PathQwenV1Conversations = "/v1/conversations"
+
+	// cmss extension
+	PathCMSSBatchChatCompletion = "/v1/batch/chat/completions"
 
 	providerTypeMoonshot   = "moonshot"
 	providerTypeAzure      = "azure"
@@ -353,6 +358,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 通义千问服务域名
 	// @Description zh-CN 仅适用于通义千问服务，默认转发域名为 dashscope.aliyuncs.com, 当使用金融云服务时，可以设置为 dashscope-finance.aliyuncs.com
 	qwenDomain string `required:"false" yaml:"qwenDomain" json:"qwenDomain"`
+	// @Title zh-CN 通义千问服务batch接口域名
+	// @Description zh-CN 仅适用于通义千问服务，默认转发域名为 batch.dashscope.aliyuncs.com
+	qwenBatchDomain string `required:"false" yaml:"qwenBatchDomain" json:"qwenBatchDomain"`
 	// @Title zh-CN 开启通义千问兼容模式
 	// @Description zh-CN 启用通义千问兼容模式后，将调用千问的兼容模式接口，同时对请求/响应不做修改。
 	qwenEnableCompatible bool `required:"false" yaml:"qwenEnableCompatible" json:"qwenEnableCompatible"`
@@ -491,6 +499,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 豆包服务域名
 	// @Description zh-CN 仅适用于豆包服务，默认转发域名为 ark.cn-beijing.volces.com
 	doubaoDomain string `required:"false" yaml:"doubaoDomain" json:"doubaoDomain"`
+	// @Title zh-CN 豆包服务Endpoint映射
+	// @Description zh-CN 仅适用于豆包服务，用于配置豆包服务的AI能力与Endpoint的映射关系，例如： {"doubao-seed-1-8-25122:openai/v1/chatcompletions": "epxxx"}
+	doubaoEndpointMapping map[string]string `required:"false" yaml:"doubaoEndpointMapping" json:"doubaoEndpointMapping"`
 	// @Title zh-CN Claude Code 模式
 	// @Description zh-CN 仅适用于Claude服务。启用后将伪装成Claude Code客户端发起请求，支持使用Claude Code的OAuth Token进行认证。
 	claudeCodeMode bool `required:"false" yaml:"claudeCodeMode" json:"claudeCodeMode"`
@@ -595,6 +606,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	if c.qwenDomain != "" {
 		// TODO: validate the domain, if not valid, set to default
 	}
+	c.qwenBatchDomain = json.Get("qwenBatchDomain").String()
 	c.ollamaServerHost = json.Get("ollamaServerHost").String()
 	c.ollamaServerPort = uint32(json.Get("ollamaServerPort").Uint())
 	c.modelMapping = make(map[string]string)
@@ -758,6 +770,10 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.vllmServerHost = json.Get("vllmServerHost").String()
 	c.vllmCustomUrl = json.Get("vllmCustomUrl").String()
 	c.doubaoDomain = json.Get("doubaoDomain").String()
+	c.doubaoEndpointMapping = make(map[string]string)
+	for k, v := range json.Get("doubaoEndpointMapping").Map() {
+		c.doubaoEndpointMapping[k] = v.String()
+	}
 	c.claudeCodeMode = json.Get("claudeCodeMode").Bool()
 	c.zhipuDomain = json.Get("zhipuDomain").String()
 	c.zhipuCodePlanMode = json.Get("zhipuCodePlanMode").Bool()

@@ -24,6 +24,7 @@ const (
 	qwenResultFormatMessage = "message"
 
 	qwenDefaultDomain                     = "dashscope.aliyuncs.com"
+	qwenBatchDefaultDomain                = "batch.dashscope.aliyuncs.com"
 	qwenChatCompletionPath                = "/api/v1/services/aigc/text-generation/generation"
 	qwenTextEmbeddingPath                 = "/api/v1/services/embeddings/text-embedding/text-embedding"
 	qwenTextRerankPath                    = "/api/v1/services/rerank/text-rerank/text-rerank"
@@ -83,6 +84,7 @@ func (m *qwenProviderInitializer) DefaultCapabilities(qwenEnableCompatible bool)
 			string(ApiNameQwenV1Rerank):        qwenCompatibleTextRerankPath,
 			string(ApiNameQwenV1Conversations): qwenCompatibleConversationsPath,
 			string(ApiNameAnthropicMessages):   qwenAnthropicMessagesPath,
+			string(ApiNameBatchChatCompletion): qwenCompatibleChatCompletionPath,
 		}
 	} else {
 		return map[string]string{
@@ -110,11 +112,21 @@ type qwenProvider struct {
 }
 
 func (m *qwenProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
-	if m.config.qwenDomain != "" {
-		util.OverwriteRequestHostHeader(headers, m.config.qwenDomain)
+	if apiName == ApiNameBatchChatCompletion && m.config.qwenEnableCompatible {
+		// batch chat
+		if m.config.qwenBatchDomain != "" {
+			util.OverwriteRequestHostHeader(headers, m.config.qwenBatchDomain)
+		} else {
+			util.OverwriteRequestHostHeader(headers, qwenBatchDefaultDomain)
+		}
 	} else {
-		util.OverwriteRequestHostHeader(headers, qwenDefaultDomain)
+		if m.config.qwenDomain != "" {
+			util.OverwriteRequestHostHeader(headers, m.config.qwenDomain)
+		} else {
+			util.OverwriteRequestHostHeader(headers, qwenDefaultDomain)
+		}
 	}
+
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
 
 	if !m.config.IsOriginal() {

@@ -2,6 +2,7 @@ package provider
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -14,11 +15,12 @@ import (
 )
 
 const (
-	doubaoDomain              = "ark.cn-beijing.volces.com"
-	doubaoChatCompletionPath  = "/api/v3/chat/completions"
-	doubaoEmbeddingsPath      = "/api/v3/embeddings"
-	doubaoImageGenerationPath = "/api/v3/images/generations"
-	doubaoResponsesPath       = "/api/v3/responses"
+	doubaoDomain                  = "ark.cn-beijing.volces.com"
+	doubaoChatCompletionPath      = "/api/v3/chat/completions"
+	doubaoBatchChatCompletionPath = "/api/v3/batch/chat/completions"
+	doubaoEmbeddingsPath          = "/api/v3/embeddings"
+	doubaoImageGenerationPath     = "/api/v3/images/generations"
+	doubaoResponsesPath           = "/api/v3/responses"
 )
 
 type doubaoProviderInitializer struct{}
@@ -32,10 +34,11 @@ func (m *doubaoProviderInitializer) ValidateConfig(config *ProviderConfig) error
 
 func (m *doubaoProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
-		string(ApiNameChatCompletion):  doubaoChatCompletionPath,
-		string(ApiNameEmbeddings):      doubaoEmbeddingsPath,
-		string(ApiNameImageGeneration): doubaoImageGenerationPath,
-		string(ApiNameResponses):       doubaoResponsesPath,
+		string(ApiNameChatCompletion):      doubaoChatCompletionPath,
+		string(ApiNameEmbeddings):          doubaoEmbeddingsPath,
+		string(ApiNameImageGeneration):     doubaoImageGenerationPath,
+		string(ApiNameResponses):           doubaoResponsesPath,
+		string(ApiNameBatchChatCompletion): doubaoBatchChatCompletionPath,
 	}
 }
 
@@ -102,7 +105,27 @@ func (m *doubaoProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName A
 			}
 		}
 	}
-	return m.config.defaultTransformRequestBody(ctx, apiName, body)
+	body, err = m.config.defaultTransformRequestBody(ctx, apiName, body)
+	if err != nil {
+		return body, err
+	}
+	return m.replaceModel2Endpoint(ctx, apiName, body)
+}
+
+func (m *doubaoProvider) replaceModel2Endpoint(_ wrapper.HttpContext, apiName ApiName, body []byte) ([]byte, error) {
+	model := gjson.GetBytes(body, "model").String()
+	ep := m.endpointMapping(apiName, model, m.config.doubaoEndpointMapping)
+	return sjson.SetBytes(body, "model", ep)
+}
+
+func (m *doubaoProvider) endpointMapping(apiName ApiName, model string, endpointMapping map[string]string) string {
+	key := fmt.Sprintf("%s:%s", model, apiName)
+	if v, ok := endpointMapping[key]; ok {
+		log.Debugf("model [%s] is mapped to endpoint [%s]", model, v)
+		return v
+	}
+	// 找不到就原样返回，例如直接传的就是Endpoint，或者对应apiname允许使用model调用
+	return model
 }
 
 func (m *doubaoProvider) GetApiName(path string) ApiName {
@@ -117,6 +140,9 @@ func (m *doubaoProvider) GetApiName(path string) ApiName {
 	}
 	if strings.Contains(path, doubaoResponsesPath) {
 		return ApiNameResponses
+	}
+	if strings.Contains(path, doubaoBatchChatCompletionPath) {
+		return ApiNameBatchChatCompletion
 	}
 	return ""
 }
