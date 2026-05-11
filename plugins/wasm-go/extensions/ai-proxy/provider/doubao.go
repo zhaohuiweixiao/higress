@@ -107,6 +107,7 @@ func (m *doubaoProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName A
 	}
 	body, err = m.config.defaultTransformRequestBody(ctx, apiName, body)
 	if err != nil {
+		log.Warnf("[doubao] failed to transform request body, err: %v", err)
 		return body, err
 	}
 	return m.replaceModel2Endpoint(ctx, apiName, body)
