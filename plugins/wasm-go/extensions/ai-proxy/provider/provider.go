@@ -87,6 +87,7 @@ const (
 	PathOpenAIPrefix                               = "/v1"
 	PathOpenAICompletions                          = "/v1/completions"
 	PathOpenAIChatCompletions                      = "/v1/chat/completions"
+	PathOpenAIV2ChatCompletionsEcloud              = "/v2/chat/completions"
 	PathOpenAIEmbeddings                           = "/v1/embeddings"
 	PathOpenAIFiles                                = "/v1/files"
 	PathOpenAIRetrieveFile                         = "/v1/files/{file_id}"

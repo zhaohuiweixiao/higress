@@ -56,6 +56,7 @@ var (
 	pathSuffixToApiName = []pair[string, provider.ApiName]{
 		// OpenAI style
 		{provider.PathOpenAIChatCompletions, provider.ApiNameChatCompletion},
+		{provider.PathOpenAIV2ChatCompletionsEcloud, provider.ApiNameChatCompletion},
 		{provider.PathOpenAICompletions, provider.ApiNameCompletion},
 		{provider.PathOpenAIEmbeddings, provider.ApiNameEmbeddings},
 		{provider.PathOpenAIAudioSpeech, provider.ApiNameAudioSpeech},
@@ -385,7 +386,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 		if settingErr != nil {
 			log.Errorf("failed to replace request body by custom settings: %v", settingErr)
 		}
-		// 仅 /v1/chat/completions 和 /v1/completions 接口支持 stream_options 参数
+		// 仅 /v1/chat/completions，/v2/chat/completions 和 /v1/completions 接口支持 stream_options 参数
 		// generic provider 不做能力映射，不添加 stream_options
 		if providerConfig.IsOpenAIProtocol() && !providerConfig.IsGeneric() && (apiName == provider.ApiNameChatCompletion || apiName == provider.ApiNameCompletion) {
 			newBody = normalizeOpenAiRequestBody(newBody, providerConfig.IsStreamUsageStatsDisabled())
