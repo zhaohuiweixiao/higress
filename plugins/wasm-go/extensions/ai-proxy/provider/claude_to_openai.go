@@ -341,6 +341,8 @@ func (c *ClaudeToOpenAIConverter) ConvertClaudeRequestToOpenAIWithOptions(body [
 
 			log.Debugf("[Claude->OpenAI] Converted thinking config: budget_tokens=%d, reasoning_effort=%s",
 				claudeRequest.Thinking.BudgetTokens, openaiRequest.ReasoningEffort)
+		} else if claudeRequest.Thinking.Type == "disabled" {
+			openaiRequest.Thinking.Type = "disabled"
 		}
 	}
 	if claudeRequest.OutputConfig != nil {
@@ -1036,7 +1038,7 @@ func (c *ClaudeToOpenAIConverter) buildClaudeStreamResponse(ctx wrapper.HttpCont
 
 		// Send message_delta with both stop_reason and usage (Claude protocol requirement)
 		messageDelta := &claudeTextGenStreamResponse{
-			Type: "message_delta",
+			Type:  "message_delta",
 			Delta: &claudeTextGenDelta{
 				StopSequence: json.RawMessage("null"), // Explicit null per Claude spec
 			},
