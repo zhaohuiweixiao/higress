@@ -75,7 +75,7 @@ type chatCompletionRequest struct {
 	ToolChoice           interface{}            `json:"tool_choice,omitempty"`
 	ParallelToolCalls    *bool                  `json:"parallel_tool_calls,omitempty"`
 	User                 string                 `json:"user,omitempty"`
-	Thinking            thinking               `json:"thinking"`
+	Thinking             *thinking              `json:"thinking,omitempty"`
 }
 
 func (c *chatCompletionRequest) getMaxTokens() int {
