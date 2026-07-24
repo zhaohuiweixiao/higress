@@ -342,7 +342,7 @@ func (c *ClaudeToOpenAIConverter) ConvertClaudeRequestToOpenAIWithOptions(body [
 			log.Debugf("[Claude->OpenAI] Converted thinking config: budget_tokens=%d, reasoning_effort=%s",
 				claudeRequest.Thinking.BudgetTokens, openaiRequest.ReasoningEffort)
 		} else if claudeRequest.Thinking.Type == "disabled" {
-			openaiRequest.Thinking.Type = "disabled"
+			openaiRequest.Thinking = &thinking{Type: "disabled"}
 		}
 	}
 	if claudeRequest.OutputConfig != nil {
