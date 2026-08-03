@@ -62,7 +62,7 @@ func decodeImageEditRequest(body []byte, request *imageEditRequest) error {
 
 func decodeImageVariationRequest(body []byte, request *imageVariationRequest) error {
 	if err := json.Unmarshal(body, request); err != nil {
-		return fmt.Errorf("unable to unmarshal request: %v", err)
+		return &InvalidRequestBodyError{Cause: err}
 	}
 	return nil
 }
