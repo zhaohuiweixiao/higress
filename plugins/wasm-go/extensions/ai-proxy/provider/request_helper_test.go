@@ -2,6 +2,7 @@ package provider
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -222,6 +223,21 @@ func TestMergeConsecutiveMessages(t *testing.T) {
 		assert.Error(t, err)
 		assert.Equal(t, body, result)
 	})
+}
+
+func TestDecodeChatCompletionRequestReturnsTypedClientErrors(t *testing.T) {
+	var request chatCompletionRequest
+
+	err := decodeChatCompletionRequest([]byte(`{"messages":`), &request)
+	var invalidBodyErr *InvalidRequestBodyError
+	require.ErrorAs(t, err, &invalidBodyErr)
+
+	err = decodeChatCompletionRequest([]byte(`{"messages":[]}`), &request)
+	var invalidParamErr *InvalidParameterError
+	require.ErrorAs(t, err, &invalidParamErr)
+	require.Equal(t, "messages", invalidParamErr.Param)
+
+	require.False(t, errors.As(invalidParamErr, &invalidBodyErr))
 }
 
 func TestCleanupContextMessages(t *testing.T) {

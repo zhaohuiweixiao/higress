@@ -1024,13 +1024,13 @@ func (c *ProviderConfig) setRequestModel(ctx wrapper.HttpContext, request interf
 
 func (c *ProviderConfig) mapModel(ctx wrapper.HttpContext, model *string) error {
 	if *model == "" {
-		return errors.New("missing model in request")
+		return &InvalidParameterError{Param: "model", Message: "model is required"}
 	}
 	ctx.SetContext(ctxKeyOriginalRequestModel, *model)
 
 	mappedModel := getMappedModel(*model, c.modelMapping)
 	if mappedModel == "" {
-		return errors.New("model becomes empty after applying the configured mapping")
+		return &InvalidParameterError{Param: "model", Message: "model is invalid after applying the configured mapping"}
 	}
 
 	*model = mappedModel

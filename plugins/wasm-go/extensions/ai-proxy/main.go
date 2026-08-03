@@ -4,6 +4,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -14,6 +15,7 @@ import (
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/config"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/provider"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/common"
 
 	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
@@ -402,8 +404,52 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 			return action
 		}
 		log.Errorf("[onHttpRequestBody] failed to process request body, apiName=%s, err=%v", apiName, err)
+		var invalidBodyErr *provider.InvalidRequestBodyError
+		if errors.As(err, &invalidBodyErr) {
+			return rejectInvalidRequestBody()
+		}
+		var invalidParamErr *provider.InvalidParameterError
+		if errors.As(err, &invalidParamErr) {
+			return rejectInvalidParameter(invalidParamErr.Param)
+		}
 		_ = util.ErrorHandler("ai-proxy.proc_req_body_failed", fmt.Errorf("failed to process request body: %v", err))
 	}
+	return types.ActionContinue
+}
+
+func rejectInvalidRequestBody() types.Action {
+	_ = proxywasm.SendHttpResponseWithDetail(
+		400,
+		"ai-proxy.invalid_request_body",
+		util.CreateHeaders(util.HeaderContentType, util.MimeTypeApplicationJson),
+		common.BuildAPIErrorBody(
+			"请求体格式不正确，请检查 JSON 格式。",
+			common.ErrorTypeInvalidRequest,
+			nil,
+			common.ErrorCodeInvalidRequestBody,
+		),
+		-1,
+	)
+	return types.ActionContinue
+}
+
+func rejectInvalidParameter(param string) types.Action {
+	var errorParam any
+	if strings.TrimSpace(param) != "" {
+		errorParam = param
+	}
+	_ = proxywasm.SendHttpResponseWithDetail(
+		400,
+		"ai-proxy.invalid_parameter",
+		util.CreateHeaders(util.HeaderContentType, util.MimeTypeApplicationJson),
+		common.BuildAPIErrorBody(
+			"参数不合法，请根据 param 字段检查请求。",
+			common.ErrorTypeInvalidRequest,
+			errorParam,
+			common.ErrorCodeInvalidParameter,
+		),
+		-1,
+	)
 	return types.ActionContinue
 }
 

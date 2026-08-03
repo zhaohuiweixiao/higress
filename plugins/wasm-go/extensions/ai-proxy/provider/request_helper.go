@@ -8,26 +8,47 @@ import (
 	"github.com/higress-group/wasm-go/pkg/log"
 )
 
+type InvalidRequestBodyError struct {
+	Cause error
+}
+
+func (e *InvalidRequestBodyError) Error() string {
+	return fmt.Sprintf("invalid request body: %v", e.Cause)
+}
+
+func (e *InvalidRequestBodyError) Unwrap() error {
+	return e.Cause
+}
+
+type InvalidParameterError struct {
+	Param   string
+	Message string
+}
+
+func (e *InvalidParameterError) Error() string {
+	return e.Message
+}
+
 func decodeChatCompletionRequest(body []byte, request *chatCompletionRequest) error {
 	if err := json.Unmarshal(body, request); err != nil {
-		return fmt.Errorf("unable to unmarshal request: %v", err)
+		return &InvalidRequestBodyError{Cause: err}
 	}
 	if request.Messages == nil || len(request.Messages) == 0 {
-		return fmt.Errorf("no message found in the request body: %s", body)
+		return &InvalidParameterError{Param: "messages", Message: "messages must contain at least one item"}
 	}
 	return nil
 }
 
 func decodeEmbeddingsRequest(body []byte, request *embeddingsRequest) error {
 	if err := json.Unmarshal(body, request); err != nil {
-		return fmt.Errorf("unable to unmarshal request: %v", err)
+		return &InvalidRequestBodyError{Cause: err}
 	}
 	return nil
 }
 
 func decodeImageGenerationRequest(body []byte, request *imageGenerationRequest) error {
 	if err := json.Unmarshal(body, request); err != nil {
-		return fmt.Errorf("unable to unmarshal request: %v", err)
+		return &InvalidRequestBodyError{Cause: err}
 	}
 	return nil
 }
