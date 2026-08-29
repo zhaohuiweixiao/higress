@@ -544,3 +544,11 @@ func TestProviderConfig_disableStreamUsageStats_fromJson(t *testing.T) {
 		})
 	}
 }
+
+func TestJiutianMoma(t *testing.T) {
+	test.RunJiutianMomaParseConfigTests(t)
+	test.RunJiutianMomaOnHttpRequestHeadersTests(t)
+	test.RunJiutianMomaOnHttpRequestBodyTests(t)
+	test.RunJiutianMomaOnHttpResponseBodyTests(t)
+	test.RunJiutianMomaOnHttpStreamingResponseBodyTests(t)
+}

@@ -171,6 +171,7 @@ const (
 	providerTypeVllm       = "vllm"
 	providerTypeGeneric    = "generic"
 	providerTypeKling      = "kling"
+	providerTypeJiutianMoma = "jiutian_moma"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -267,6 +268,7 @@ var (
 		providerTypeVllm:       &vllmProviderInitializer{},
 		providerTypeGeneric:    &genericProviderInitializer{},
 		providerTypeKling:      &klingProviderInitializer{},
+		providerTypeJiutianMoma: &jiutianMomaProviderInitializer{},
 	}
 )
 
@@ -506,6 +508,10 @@ type ProviderConfig struct {
 	// @Title zh-CN 豆包服务Endpoint映射
 	// @Description zh-CN 仅适用于豆包服务，用于配置豆包服务的AI能力与Endpoint的映射关系，例如： {"doubao-seed-1-8-25122:openai/v1/chatcompletions": "epxxx"}
 	doubaoEndpointMapping map[string]string `required:"false" yaml:"doubaoEndpointMapping" json:"doubaoEndpointMapping"`
+	// @Title zh-CN 九天 MoMA 开放平台域名
+	// jiutian_moma 当前仅支持配置目标域名，请求路径由内置 capability 固定映射。
+	// 如果后续需要同时配置域名和路径前缀，再引入 jiutianMomaCustomUrl 一类的完整 URL 配置。
+	jiutianMomaDomain string `required:"false" yaml:"jiutianMomaDomain" json:"jiutianMomaDomain"`
 	// @Title zh-CN Claude Code 模式
 	// @Description zh-CN 仅适用于Claude服务。启用后将伪装成Claude Code客户端发起请求，支持使用Claude Code的OAuth Token进行认证。
 	claudeCodeMode bool `required:"false" yaml:"claudeCodeMode" json:"claudeCodeMode"`
@@ -778,6 +784,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.vllmServerHost = json.Get("vllmServerHost").String()
 	c.vllmCustomUrl = json.Get("vllmCustomUrl").String()
 	c.doubaoDomain = json.Get("doubaoDomain").String()
+	c.jiutianMomaDomain = json.Get("jiutianMomaDomain").String()
 	c.doubaoEndpointMapping = make(map[string]string)
 	for k, v := range json.Get("doubaoEndpointMapping").Map() {
 		c.doubaoEndpointMapping[k] = v.String()
