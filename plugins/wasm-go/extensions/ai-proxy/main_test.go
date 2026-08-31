@@ -285,6 +285,10 @@ func TestOpenAI(t *testing.T) {
 	test.RunOpenAIPromoteThinkingOnEmptyStreamingTests(t)
 }
 
+func TestDeepSeekRequestValidation(t *testing.T) {
+	test.RunDeepSeekRequestValidationTests(t)
+}
+
 func TestQwen(t *testing.T) {
 	test.RunQwenParseConfigTests(t)
 	test.RunQwenOnHttpRequestHeadersTests(t)

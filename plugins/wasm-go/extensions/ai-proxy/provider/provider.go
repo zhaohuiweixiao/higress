@@ -485,6 +485,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 首包超时
 	// @Description zh-CN 流式请求中收到上游服务第一个响应包的超时时间，单位为毫秒。默认值为 0，表示不开启首包超时
 	firstByteTimeout uint32 `required:"false" yaml:"firstByteTimeout" json:"firstByteTimeout"`
+	// @Title zh-CN 上游请求协议校验
+	// @Description zh-CN 在转发前按指定模型协议校验请求。默认关闭。
+	requestValidation requestValidationConfig `required:"false" yaml:"requestValidation" json:"requestValidation"`
 	// @Title zh-CN Triton Model Version
 	// @Description 仅适用于 NVIDIA Triton Interference Server :path 中的 modelVersion 参考："https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/protocol/extension_generate.html"
 	tritonModelVersion string `required:"false" yaml:"tritonModelVersion" json:"tritonModelVersion"`
@@ -589,6 +592,10 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	}
 	// first byte timeout
 	c.firstByteTimeout = uint32(json.Get("firstByteTimeout").Uint())
+	c.requestValidation = requestValidationConfig{}
+	if validationJSON := json.Get("requestValidation"); validationJSON.Exists() && validationJSON.IsObject() {
+		c.requestValidation.FromJSON(validationJSON)
+	}
 	c.openaiCustomUrl = json.Get("openaiCustomUrl").String()
 	c.moonshotFileId = json.Get("moonshotFileId").String()
 	c.azureServiceUrl = json.Get("azureServiceUrl").String()
@@ -804,6 +811,12 @@ func (c *ProviderConfig) Validate() error {
 		if err := c.context.Validate(); err != nil {
 			return err
 		}
+	}
+	if err := c.requestValidation.Validate(); err != nil {
+		return err
+	}
+	if c.requestValidation.enabled && c.protocol != protocolOpenAI {
+		return errors.New("request validation requires the openai protocol")
 	}
 
 	if c.failover.enabled {
@@ -1319,6 +1332,10 @@ func (c *ProviderConfig) handleRequestBody(
 	}
 
 	if err != nil {
+		return types.ActionContinue, err
+	}
+
+	if err = c.validateRequest(apiName, body); err != nil {
 		return types.ActionContinue, err
 	}
 

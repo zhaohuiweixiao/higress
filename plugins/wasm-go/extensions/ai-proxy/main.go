@@ -404,6 +404,10 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 			return action
 		}
 		log.Errorf("[onHttpRequestBody] failed to process request body, apiName=%s, err=%v", apiName, err)
+		var validationErr *provider.RequestValidationError
+		if errors.As(err, &validationErr) {
+			return rejectRequestValidation(validationErr)
+		}
 		var invalidBodyErr *provider.InvalidRequestBodyError
 		if errors.As(err, &invalidBodyErr) {
 			return rejectInvalidRequestBody()
@@ -414,6 +418,30 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 		}
 		_ = util.ErrorHandler("ai-proxy.proc_req_body_failed", fmt.Errorf("failed to process request body: %v", err))
 	}
+	return types.ActionContinue
+}
+
+func rejectRequestValidation(err *provider.RequestValidationError) types.Action {
+	param := any(nil)
+	if strings.TrimSpace(err.Param) != "" {
+		param = err.Param
+	}
+	statusDetail := "ai-proxy.request_validation"
+	if err.RuleID != "" {
+		statusDetail += "." + strings.ToLower(err.RuleID)
+	}
+	_ = proxywasm.SendHttpResponseWithDetail(
+		400,
+		statusDetail,
+		util.CreateHeaders(util.HeaderContentType, util.MimeTypeApplicationJson),
+		common.BuildAPIErrorBody(
+			err.Message,
+			common.ErrorTypeInvalidRequest,
+			param,
+			common.ErrorTypeInvalidRequest,
+		),
+		-1,
+	)
 	return types.ActionContinue
 }
 
