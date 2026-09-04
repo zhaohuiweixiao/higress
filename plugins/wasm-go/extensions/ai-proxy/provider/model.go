@@ -193,8 +193,15 @@ type usage struct {
 }
 
 type promptTokensDetails struct {
-	AudioTokens  int `json:"audio_tokens,omitempty"`
-	CachedTokens int `json:"cached_tokens,omitempty"`
+	AudioTokens              int            `json:"audio_tokens,omitempty"`
+	CachedTokens             int            `json:"cached_tokens,omitempty"`
+	CacheCreationInputTokens int            `json:"cache_creation_input_tokens,omitempty"`
+	CacheCreation            *cacheCreation `json:"cache_creation,omitempty"`
+	CacheType                string         `json:"cache_type,omitempty"`
+}
+
+type cacheCreation struct {
+	Ephemeral5mInputTokens int `json:"ephemeral_5m_input_tokens"`
 }
 
 type completionTokensDetails struct {

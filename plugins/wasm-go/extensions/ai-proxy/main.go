@@ -244,6 +244,10 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 
 	path, _ := url.Parse(rawPath)
 	apiName := getApiName(path.Path)
+	if apiName == provider.ApiNameAnthropicMessages {
+		_ = proxywasm.ReplaceHttpRequestHeader("llm-type", "claude")
+		ctx.SetContext("isClaudeProtocol", true)
+	}
 	providerConfig := pluginConfig.GetProviderConfig()
 	if providerConfig.IsOriginal() {
 		if handler, ok := activeProvider.(provider.ApiNameHandler); ok {
@@ -452,6 +456,9 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 		handler.TransformResponseHeaders(ctx, apiName, headers)
 	} else {
 		providerConfig.DefaultTransformResponseHeaders(ctx, headers)
+	}
+	if isClaude, _ := ctx.GetContext("isClaudeProtocol").(bool); isClaude {
+		headers.Set("llm-response", "claude")
 	}
 	util.ReplaceResponseHeaders(headers)
 
