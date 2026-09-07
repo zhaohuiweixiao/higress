@@ -55,6 +55,35 @@ Plugin execution priority: `100`
 | `basePath`        | string                 | Optional    | -       | If configured, basePath can be used to remove the prefix from the request path, or prepend the prefix to the request path. Defaults to removal.                                                                                                                                                                                                                                              |
 | `basePathHandling` | string               | Optional    | removePrefix | basePathHandling specifies how basePath is processed. Possible values: removePrefix (removes the basePath prefix from the request path before forwarding to upstream), prepend (adds the basePath prefix to the request path when forwarding to upstream)                                                                                                                                                                                                                                                                                                |
 | `contextCleanupCommands` | array of string | Optional    | -       | List of context cleanup commands. When a user message in the request exactly matches any of the configured commands, that message and all non-system messages before it will be removed, keeping only system messages and messages after the command. This enables users to actively clear conversation history.                                                                           |
+| `requestValidation` | object | Optional | - | Validates a model-specific request contract before forwarding upstream. Currently supports `deepseek-chat-v4` and is disabled by default. |
+
+**Details for the `requestValidation` configuration fields:**
+
+| Name | Data Type | Requirement | Default | Description |
+| --- | --- | --- | --- | --- |
+| `enabled` | boolean | Optional | false | Enables request validation. |
+| `profile` | string | Required when enabled | - | Versioned validation profile. Currently supports `deepseek-chat-v4`. |
+| `mode` | string | Optional | `enforce` | `enforce` returns a local 400 response; `shadow` logs the rule ID and forwards the request. |
+| `modelPatterns` | array of string | Optional | - | Glob patterns applied to the mapped model name. When omitted, all Chat Completions requests for the provider are validated. |
+| `validateStrictSchema` | boolean | Optional | false | Validates DeepSeek Strict Tool Call JSON Schema restrictions. |
+
+```yaml
+providers:
+  - id: deepseek-compatible
+    type: openai
+    apiTokens:
+      - your-api-key
+    openaiCustomUrl: https://api.deepseek.com/v1
+    requestValidation:
+      enabled: true
+      profile: deepseek-chat-v4
+      mode: shadow
+      modelPatterns:
+        - deepseek-v4-*
+      validateStrictSchema: true
+```
+
+Start with `shadow` mode to observe compatibility before switching to `enforce`. The profile validates tool-call sequencing, `reasoning_content` round-tripping for thinking requests with tools, and documented DeepSeek parameter bounds without logging message or reasoning content.
 
 **Details for the `context` configuration fields:**
 

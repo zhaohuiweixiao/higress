@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/common"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/higress-group/wasm-go/pkg/log"
@@ -28,9 +29,10 @@ import (
 )
 
 const (
-	defaultHeaderSchema = "header"
-	defaultBodySchema   = "body"
-	defaultRejectedCode = 403
+	defaultHeaderSchema        = "header"
+	defaultBodySchema          = "body"
+	defaultRejectedCode        = 400
+	defaultInvalidParameterMsg = "参数不合法，请根据 param 字段检查请求。"
 )
 
 func main() {}
@@ -122,6 +124,13 @@ func parseConfig(result gjson.Result, config *Config, log log.Log) error {
 	return nil
 }
 
+func configuredRejectedMessage(config Config, fallback string) string {
+	if config.rejectedMsg != "" {
+		return config.rejectedMsg
+	}
+	return fallback
+}
+
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log log.Log) types.Action {
 	if !config.enableHeaderSchema {
 		return types.ActionContinue
@@ -157,7 +166,18 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log log.Log) t
 	err = compile.Validate(document)
 	if err != nil {
 		log.Errorf("validate request headers failed: %v", err)
-		proxywasm.SendHttpResponseWithDetail(config.rejectedCode, "request-validation.invalid_headers", nil, []byte(config.rejectedMsg), -1)
+		proxywasm.SendHttpResponseWithDetail(
+			config.rejectedCode,
+			"request-validation.invalid_headers",
+			[][2]string{{"Content-Type", "application/json"}},
+			common.BuildAPIErrorBody(
+				configuredRejectedMessage(config, defaultInvalidParameterMsg),
+				common.ErrorTypeInvalidRequest,
+				"headers",
+				common.ErrorCodeInvalidParameter,
+			),
+			-1,
+		)
 		return types.ActionPause
 	}
 
@@ -194,7 +214,18 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log 
 	err = compile.Validate(document)
 	if err != nil {
 		log.Errorf("validate request body failed: %v", err)
-		proxywasm.SendHttpResponseWithDetail(config.rejectedCode, "request-validation.invalid_body", nil, []byte(config.rejectedMsg), -1)
+		proxywasm.SendHttpResponseWithDetail(
+			config.rejectedCode,
+			"request-validation.invalid_parameter",
+			[][2]string{{"Content-Type", "application/json"}},
+			common.BuildAPIErrorBody(
+				configuredRejectedMessage(config, defaultInvalidParameterMsg),
+				common.ErrorTypeInvalidRequest,
+				"body",
+				common.ErrorCodeInvalidParameter,
+			),
+			-1,
+		)
 		return types.ActionPause
 	}
 

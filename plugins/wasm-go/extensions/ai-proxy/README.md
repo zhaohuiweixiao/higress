@@ -59,6 +59,37 @@ description: AI 代理插件配置参考
 | `basePath`             | string                 | 非必填   | -      | 如果配置了 basePath，可用于在请求 path 中移除该前缀，或添加至请求 path 中，默认为进行移除                                                                                                                                                                                                                                                                                                                                                 |
 | `basePathHandling`     | string                 | 非必填   | removePrefix | basePathHandling 用于指定 basePath 的处理方式。可选值：removePrefix（移除路径前缀，将请求转发给上游时去除 basePath 前缀后再拼接）、prepend（添加路径前缀，将请求转发给上游时在路径前面添加 basePath 前缀）                                                                                                                                                                                                                                                                                                                         |
 | `contextCleanupCommands` | array of string      | 非必填   | -      | 上下文清理命令列表。当请求的 messages 中存在完全匹配任意一个命令的 user 消息时，将该消息及之前所有非 system 消息清理掉，只保留 system 消息和该命令之后的消息。可用于主动清理对话上下文。                                                                                                                                                                                                                                                    |
+| `requestValidation`      | object               | 非必填   | -      | 转发上游前执行模型协议校验。当前支持 `deepseek-chat-v4`，默认关闭。                                                                                                                                                                                                                                                                                                                                                                      |
+
+`requestValidation` 的配置字段如下：
+
+| 名称 | 数据类型 | 填写要求 | 默认值 | 描述 |
+| --- | --- | --- | --- | --- |
+| `enabled` | bool | 非必填 | false | 是否启用请求校验。 |
+| `profile` | string | 启用时必填 | - | 校验规则版本，当前支持 `deepseek-chat-v4`。 |
+| `mode` | string | 非必填 | `enforce` | `enforce` 在网关返回 400；`shadow` 仅记录规则 ID 并继续转发。 |
+| `modelPatterns` | array of string | 非必填 | - | 对模型映射后的模型名进行 glob 匹配；未配置时校验该 provider 的全部 Chat Completions 请求。 |
+| `validateStrictSchema` | bool | 非必填 | false | 是否校验 DeepSeek Strict Tool Call 的 JSON Schema 限制。 |
+
+DeepSeek v4 校验示例：
+
+```yaml
+providers:
+  - id: deepseek-compatible
+    type: openai
+    apiTokens:
+      - your-api-key
+    openaiCustomUrl: https://api.deepseek.com/v1
+    requestValidation:
+      enabled: true
+      profile: deepseek-chat-v4
+      mode: shadow
+      modelPatterns:
+        - deepseek-v4-*
+      validateStrictSchema: true
+```
+
+建议先使用 `shadow` 观察误报，再切换为 `enforce`。校验器检查工具调用与工具结果的对应关系、thinking + tools 场景的 `reasoning_content` 回传，以及 DeepSeek 官方参数边界；不会记录消息正文或推理内容。
 
 `context`的配置字段说明如下：
 

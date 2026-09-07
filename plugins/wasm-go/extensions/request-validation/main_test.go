@@ -256,7 +256,14 @@ func TestOnHttpRequestHeaders(t *testing.T) {
 			localResponse := host.GetLocalResponse()
 			require.NotNil(t, localResponse)
 			require.Equal(t, uint32(400), localResponse.StatusCode)
-			require.Equal(t, "Invalid headers", string(localResponse.Data))
+			require.JSONEq(t, `{
+				"error": {
+					"message": "Invalid headers",
+					"type": "invalid_request_error",
+					"param": "headers",
+					"code": "invalid_parameter"
+				}
+			}`, string(localResponse.Data))
 
 			host.CompleteHttp()
 		})
@@ -338,7 +345,14 @@ func TestOnHttpRequestBody(t *testing.T) {
 			localResponse := host.GetLocalResponse()
 			require.NotNil(t, localResponse)
 			require.Equal(t, uint32(422), localResponse.StatusCode)
-			require.Equal(t, "Invalid request body", string(localResponse.Data))
+			require.JSONEq(t, `{
+				"error": {
+					"message": "Invalid request body",
+					"type": "invalid_request_error",
+					"param": "body",
+					"code": "invalid_parameter"
+				}
+			}`, string(localResponse.Data))
 
 			host.CompleteHttp()
 		})
@@ -367,7 +381,33 @@ func TestOnHttpRequestBody(t *testing.T) {
 			localResponse := host.GetLocalResponse()
 			require.NotNil(t, localResponse)
 			require.Equal(t, uint32(422), localResponse.StatusCode)
-			require.Equal(t, "Invalid request body", string(localResponse.Data))
+			require.JSONEq(t, `{
+				"error": {
+					"message": "Invalid request body",
+					"type": "invalid_request_error",
+					"param": "body",
+					"code": "invalid_parameter"
+				}
+			}`, string(localResponse.Data))
+
+			host.CompleteHttp()
+		})
+
+		t.Run("malformed json is allowed", func(t *testing.T) {
+			host, status := test.NewTestHost(bodyValidationConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "test.com"},
+				{":path", "/api/test"},
+				{":method", "POST"},
+			})
+			require.Equal(t, types.ActionContinue, action)
+
+			action = host.CallOnHttpRequestBody([]byte(`{"name":`))
+			require.Equal(t, types.ActionContinue, action)
+			require.Nil(t, host.GetLocalResponse())
 
 			host.CompleteHttp()
 		})

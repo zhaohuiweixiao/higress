@@ -285,6 +285,10 @@ func TestOpenAI(t *testing.T) {
 	test.RunOpenAIPromoteThinkingOnEmptyStreamingTests(t)
 }
 
+func TestDeepSeekRequestValidation(t *testing.T) {
+	test.RunDeepSeekRequestValidationTests(t)
+}
+
 func TestQwen(t *testing.T) {
 	test.RunQwenParseConfigTests(t)
 	test.RunQwenOnHttpRequestHeadersTests(t)
@@ -539,4 +543,12 @@ func TestProviderConfig_disableStreamUsageStats_fromJson(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestJiutianMoma(t *testing.T) {
+	test.RunJiutianMomaParseConfigTests(t)
+	test.RunJiutianMomaOnHttpRequestHeadersTests(t)
+	test.RunJiutianMomaOnHttpRequestBodyTests(t)
+	test.RunJiutianMomaOnHttpResponseBodyTests(t)
+	test.RunJiutianMomaOnHttpStreamingResponseBodyTests(t)
 }

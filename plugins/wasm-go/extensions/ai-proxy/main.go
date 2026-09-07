@@ -4,6 +4,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -14,6 +15,7 @@ import (
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/config"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/provider"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/common"
 
 	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
@@ -56,6 +58,7 @@ var (
 	pathSuffixToApiName = []pair[string, provider.ApiName]{
 		// OpenAI style
 		{provider.PathOpenAIChatCompletions, provider.ApiNameChatCompletion},
+		{provider.PathOpenAIV2ChatCompletionsEcloud, provider.ApiNameChatCompletion},
 		{provider.PathOpenAICompletions, provider.ApiNameCompletion},
 		{provider.PathOpenAIEmbeddings, provider.ApiNameEmbeddings},
 		{provider.PathOpenAIAudioSpeech, provider.ApiNameAudioSpeech},
@@ -80,6 +83,8 @@ var (
 		// Qwen style
 		{provider.PathQwenV1Reranks, provider.ApiNameQwenV1Rerank},
 		{provider.PathQwenV1Conversations, provider.ApiNameQwenV1Conversations},
+		// CMSS style
+		{provider.PathCMSSBatchChatCompletion, provider.ApiNameBatchChatCompletion},
 	}
 	pathPatternToApiName = []pair[*regexp.Regexp, provider.ApiName]{
 		// OpenAI style
@@ -241,6 +246,10 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 
 	path, _ := url.Parse(rawPath)
 	apiName := getApiName(path.Path)
+	if apiName == provider.ApiNameAnthropicMessages {
+		_ = proxywasm.ReplaceHttpRequestHeader("llm-type", "claude")
+		ctx.SetContext("isClaudeProtocol", true)
+	}
 	providerConfig := pluginConfig.GetProviderConfig()
 	if providerConfig.IsOriginal() {
 		if handler, ok := activeProvider.(provider.ApiNameHandler); ok {
@@ -383,7 +392,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 		if settingErr != nil {
 			log.Errorf("failed to replace request body by custom settings: %v", settingErr)
 		}
-		// 仅 /v1/chat/completions 和 /v1/completions 接口支持 stream_options 参数
+		// 仅 /v1/chat/completions，/v2/chat/completions 和 /v1/completions 接口支持 stream_options 参数
 		// generic provider 不做能力映射，不添加 stream_options
 		if providerConfig.IsOpenAIProtocol() && !providerConfig.IsGeneric() && (apiName == provider.ApiNameChatCompletion || apiName == provider.ApiNameCompletion) {
 			newBody = normalizeOpenAiRequestBody(newBody, providerConfig.IsStreamUsageStatsDisabled())
@@ -395,8 +404,80 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 			return action
 		}
 		log.Errorf("[onHttpRequestBody] failed to process request body, apiName=%s, err=%v", apiName, err)
+		var validationErr *provider.RequestValidationError
+		if errors.As(err, &validationErr) {
+			return rejectRequestValidation(validationErr)
+		}
+		var invalidBodyErr *provider.InvalidRequestBodyError
+		if errors.As(err, &invalidBodyErr) {
+			return rejectInvalidRequestBody()
+		}
+		var invalidParamErr *provider.InvalidParameterError
+		if errors.As(err, &invalidParamErr) {
+			return rejectInvalidParameter(invalidParamErr.Param)
+		}
 		_ = util.ErrorHandler("ai-proxy.proc_req_body_failed", fmt.Errorf("failed to process request body: %v", err))
 	}
+	return types.ActionContinue
+}
+
+func rejectRequestValidation(err *provider.RequestValidationError) types.Action {
+	param := any(nil)
+	if strings.TrimSpace(err.Param) != "" {
+		param = err.Param
+	}
+	statusDetail := "ai-proxy.request_validation"
+	if err.RuleID != "" {
+		statusDetail += "." + strings.ToLower(err.RuleID)
+	}
+	_ = proxywasm.SendHttpResponseWithDetail(
+		400,
+		statusDetail,
+		util.CreateHeaders(util.HeaderContentType, util.MimeTypeApplicationJson),
+		common.BuildAPIErrorBody(
+			err.Message,
+			common.ErrorTypeInvalidRequest,
+			param,
+			common.ErrorTypeInvalidRequest,
+		),
+		-1,
+	)
+	return types.ActionContinue
+}
+
+func rejectInvalidRequestBody() types.Action {
+	_ = proxywasm.SendHttpResponseWithDetail(
+		400,
+		"ai-proxy.invalid_request_body",
+		util.CreateHeaders(util.HeaderContentType, util.MimeTypeApplicationJson),
+		common.BuildAPIErrorBody(
+			"请求体格式不正确，请检查 JSON 格式。",
+			common.ErrorTypeInvalidRequest,
+			nil,
+			common.ErrorCodeInvalidRequestBody,
+		),
+		-1,
+	)
+	return types.ActionContinue
+}
+
+func rejectInvalidParameter(param string) types.Action {
+	var errorParam any
+	if strings.TrimSpace(param) != "" {
+		errorParam = param
+	}
+	_ = proxywasm.SendHttpResponseWithDetail(
+		400,
+		"ai-proxy.invalid_parameter",
+		util.CreateHeaders(util.HeaderContentType, util.MimeTypeApplicationJson),
+		common.BuildAPIErrorBody(
+			"参数不合法，请根据 param 字段检查请求。",
+			common.ErrorTypeInvalidRequest,
+			errorParam,
+			common.ErrorCodeInvalidParameter,
+		),
+		-1,
+	)
 	return types.ActionContinue
 }
 
@@ -449,6 +530,9 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 		handler.TransformResponseHeaders(ctx, apiName, headers)
 	} else {
 		providerConfig.DefaultTransformResponseHeaders(ctx, headers)
+	}
+	if isClaude, _ := ctx.GetContext("isClaudeProtocol").(bool); isClaude {
+		headers.Set("llm-response", "claude")
 	}
 	util.ReplaceResponseHeaders(headers)
 

@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/common"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/wasm-go/pkg/log"
 )
@@ -67,7 +68,14 @@ var (
 type ErrorHandlerFunc func(statusCodeDetails string, err error) error
 
 var ErrorHandler ErrorHandlerFunc = func(statusCodeDetails string, err error) error {
-	return proxywasm.SendHttpResponseWithDetail(500, statusCodeDetails, CreateHeaders(HeaderContentType, MimeTypeTextPlain), []byte(err.Error()), -1)
+	log.Errorf("%s: %v", statusCodeDetails, err)
+	return proxywasm.SendHttpResponseWithDetail(
+		500,
+		statusCodeDetails,
+		CreateHeaders(HeaderContentType, MimeTypeApplicationJson),
+		common.BuildInternalErrorBody(),
+		-1,
+	)
 }
 
 func CreateHeaders(kvs ...string) [][2]string {

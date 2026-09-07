@@ -67,6 +67,8 @@ const (
 	ApiNameRetrieveVideoContent                 ApiName = "openai/v1/retrievevideocontent"
 	ApiNameKlingImageToVideo                    ApiName = "kling/v1/image2video"
 	ApiNameKlingRetrieveImageVideo              ApiName = "kling/v1/retrieveimagevideo"
+	// cmss extension
+	ApiNameBatchChatCompletion ApiName = "cmss/v1/batchchatcompletion"
 
 	// TODO: 以下是一些非标准的API名称，需要进一步确认是否支持
 	ApiNameCohereV1Rerank              ApiName = "cohere/v1/rerank"
@@ -85,6 +87,7 @@ const (
 	PathOpenAIPrefix                               = "/v1"
 	PathOpenAICompletions                          = "/v1/completions"
 	PathOpenAIChatCompletions                      = "/v1/chat/completions"
+	PathOpenAIV2ChatCompletionsEcloud              = "/v2/chat/completions"
 	PathOpenAIEmbeddings                           = "/v1/embeddings"
 	PathOpenAIFiles                                = "/v1/files"
 	PathOpenAIRetrieveFile                         = "/v1/files/{file_id}"
@@ -127,6 +130,9 @@ const (
 	PathQwenV1Reranks       = "/v1/reranks"
 	PathQwenV1Conversations = "/v1/conversations"
 
+	// cmss extension
+	PathCMSSBatchChatCompletion = "/v1/batch/chat/completions"
+
 	providerTypeMoonshot   = "moonshot"
 	providerTypeAzure      = "azure"
 	providerTypeAi360      = "ai360"
@@ -165,6 +171,7 @@ const (
 	providerTypeVllm       = "vllm"
 	providerTypeGeneric    = "generic"
 	providerTypeKling      = "kling"
+	providerTypeJiutianMoma = "jiutian_moma"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -261,6 +268,7 @@ var (
 		providerTypeVllm:       &vllmProviderInitializer{},
 		providerTypeGeneric:    &genericProviderInitializer{},
 		providerTypeKling:      &klingProviderInitializer{},
+		providerTypeJiutianMoma: &jiutianMomaProviderInitializer{},
 	}
 )
 
@@ -353,6 +361,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 通义千问服务域名
 	// @Description zh-CN 仅适用于通义千问服务，默认转发域名为 dashscope.aliyuncs.com, 当使用金融云服务时，可以设置为 dashscope-finance.aliyuncs.com
 	qwenDomain string `required:"false" yaml:"qwenDomain" json:"qwenDomain"`
+	// @Title zh-CN 通义千问服务batch接口域名
+	// @Description zh-CN 仅适用于通义千问服务，默认转发域名为 batch.dashscope.aliyuncs.com
+	qwenBatchDomain string `required:"false" yaml:"qwenBatchDomain" json:"qwenBatchDomain"`
 	// @Title zh-CN 开启通义千问兼容模式
 	// @Description zh-CN 启用通义千问兼容模式后，将调用千问的兼容模式接口，同时对请求/响应不做修改。
 	qwenEnableCompatible bool `required:"false" yaml:"qwenEnableCompatible" json:"qwenEnableCompatible"`
@@ -476,6 +487,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 首包超时
 	// @Description zh-CN 流式请求中收到上游服务第一个响应包的超时时间，单位为毫秒。默认值为 0，表示不开启首包超时
 	firstByteTimeout uint32 `required:"false" yaml:"firstByteTimeout" json:"firstByteTimeout"`
+	// @Title zh-CN 上游请求协议校验
+	// @Description zh-CN 在转发前按指定模型协议校验请求。默认关闭。
+	requestValidation requestValidationConfig `required:"false" yaml:"requestValidation" json:"requestValidation"`
 	// @Title zh-CN Triton Model Version
 	// @Description 仅适用于 NVIDIA Triton Interference Server :path 中的 modelVersion 参考："https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/protocol/extension_generate.html"
 	tritonModelVersion string `required:"false" yaml:"tritonModelVersion" json:"tritonModelVersion"`
@@ -491,6 +505,13 @@ type ProviderConfig struct {
 	// @Title zh-CN 豆包服务域名
 	// @Description zh-CN 仅适用于豆包服务，默认转发域名为 ark.cn-beijing.volces.com
 	doubaoDomain string `required:"false" yaml:"doubaoDomain" json:"doubaoDomain"`
+	// @Title zh-CN 豆包服务Endpoint映射
+	// @Description zh-CN 仅适用于豆包服务，用于配置豆包服务的AI能力与Endpoint的映射关系，例如： {"doubao-seed-1-8-25122:openai/v1/chatcompletions": "epxxx"}
+	doubaoEndpointMapping map[string]string `required:"false" yaml:"doubaoEndpointMapping" json:"doubaoEndpointMapping"`
+	// @Title zh-CN 九天 MoMA 开放平台域名
+	// jiutian_moma 当前仅支持配置目标域名，请求路径由内置 capability 固定映射。
+	// 如果后续需要同时配置域名和路径前缀，再引入 jiutianMomaCustomUrl 一类的完整 URL 配置。
+	jiutianMomaDomain string `required:"false" yaml:"jiutianMomaDomain" json:"jiutianMomaDomain"`
 	// @Title zh-CN Claude Code 模式
 	// @Description zh-CN 仅适用于Claude服务。启用后将伪装成Claude Code客户端发起请求，支持使用Claude Code的OAuth Token进行认证。
 	claudeCodeMode bool `required:"false" yaml:"claudeCodeMode" json:"claudeCodeMode"`
@@ -577,6 +598,10 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	}
 	// first byte timeout
 	c.firstByteTimeout = uint32(json.Get("firstByteTimeout").Uint())
+	c.requestValidation = requestValidationConfig{}
+	if validationJSON := json.Get("requestValidation"); validationJSON.Exists() && validationJSON.IsObject() {
+		c.requestValidation.FromJSON(validationJSON)
+	}
 	c.openaiCustomUrl = json.Get("openaiCustomUrl").String()
 	c.moonshotFileId = json.Get("moonshotFileId").String()
 	c.azureServiceUrl = json.Get("azureServiceUrl").String()
@@ -595,6 +620,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	if c.qwenDomain != "" {
 		// TODO: validate the domain, if not valid, set to default
 	}
+	c.qwenBatchDomain = json.Get("qwenBatchDomain").String()
 	c.ollamaServerHost = json.Get("ollamaServerHost").String()
 	c.ollamaServerPort = uint32(json.Get("ollamaServerPort").Uint())
 	c.modelMapping = make(map[string]string)
@@ -758,6 +784,11 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.vllmServerHost = json.Get("vllmServerHost").String()
 	c.vllmCustomUrl = json.Get("vllmCustomUrl").String()
 	c.doubaoDomain = json.Get("doubaoDomain").String()
+	c.jiutianMomaDomain = json.Get("jiutianMomaDomain").String()
+	c.doubaoEndpointMapping = make(map[string]string)
+	for k, v := range json.Get("doubaoEndpointMapping").Map() {
+		c.doubaoEndpointMapping[k] = v.String()
+	}
 	c.claudeCodeMode = json.Get("claudeCodeMode").Bool()
 	c.zhipuDomain = json.Get("zhipuDomain").String()
 	c.zhipuCodePlanMode = json.Get("zhipuCodePlanMode").Bool()
@@ -787,6 +818,12 @@ func (c *ProviderConfig) Validate() error {
 		if err := c.context.Validate(); err != nil {
 			return err
 		}
+	}
+	if err := c.requestValidation.Validate(); err != nil {
+		return err
+	}
+	if c.requestValidation.enabled && c.protocol != protocolOpenAI {
+		return errors.New("request validation requires the openai protocol")
 	}
 
 	if c.failover.enabled {
@@ -1007,13 +1044,13 @@ func (c *ProviderConfig) setRequestModel(ctx wrapper.HttpContext, request interf
 
 func (c *ProviderConfig) mapModel(ctx wrapper.HttpContext, model *string) error {
 	if *model == "" {
-		return errors.New("missing model in request")
+		return &InvalidParameterError{Param: "model", Message: "model is required"}
 	}
 	ctx.SetContext(ctxKeyOriginalRequestModel, *model)
 
 	mappedModel := getMappedModel(*model, c.modelMapping)
 	if mappedModel == "" {
-		return errors.New("model becomes empty after applying the configured mapping")
+		return &InvalidParameterError{Param: "model", Message: "model is invalid after applying the configured mapping"}
 	}
 
 	*model = mappedModel
@@ -1302,6 +1339,10 @@ func (c *ProviderConfig) handleRequestBody(
 	}
 
 	if err != nil {
+		return types.ActionContinue, err
+	}
+
+	if err = c.validateRequest(apiName, body); err != nil {
 		return types.ActionContinue, err
 	}
 

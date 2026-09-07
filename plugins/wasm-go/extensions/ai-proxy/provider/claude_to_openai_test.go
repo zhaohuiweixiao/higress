@@ -1187,6 +1187,46 @@ func TestProviderConfigSupportsMessageReasoningContent(t *testing.T) {
 			assert.Equal(t, tt.expected, config.supportsMessageReasoningContent())
 		})
 	}
+
+	t.Run("preserve_zero_input_tokens_when_cache_consumes_prompt_tokens", func(t *testing.T) {
+		openaiResponse := `{
+			"id": "chatcmpl-cache-hit",
+			"object": "chat.completion",
+			"created": 1756214072,
+			"model": "anthropic/claude-sonnet-4",
+			"choices": [{
+				"index": 0,
+				"message": {
+					"role": "assistant",
+					"content": "cached reply"
+				},
+				"finish_reason": "stop"
+			}],
+			"usage": {
+				"prompt_tokens": 11,
+				"completion_tokens": 20,
+				"total_tokens": 31,
+				"prompt_tokens_details": {
+					"cached_tokens": 11
+				}
+			}
+		}`
+
+		result, err := converter.ConvertOpenAIResponseToClaude(nil, []byte(openaiResponse))
+		require.NoError(t, err)
+		assert.Contains(t, string(result), `"input_tokens":0`)
+		assert.Contains(t, string(result), `"cache_read_input_tokens":11`)
+	})
+}
+
+func TestClaudeToOpenAIConverter_ConvertOpenAIStreamResponseToClaude_PreservesZeroInputTokens(t *testing.T) {
+	converter := &ClaudeToOpenAIConverter{}
+	openaiChunk := []byte("data: " + `{"id":"chatcmpl-cache-hit-stream","object":"chat.completion.chunk","created":1756214072,"model":"anthropic/claude-sonnet-4","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":"stop"}],"usage":{"prompt_tokens":11,"completion_tokens":20,"total_tokens":31,"prompt_tokens_details":{"cached_tokens":11}}}` + "\n\n")
+
+	result, err := converter.ConvertOpenAIStreamResponseToClaude(nil, openaiChunk)
+	require.NoError(t, err)
+	assert.Contains(t, string(result), `"input_tokens":0`)
+	assert.Contains(t, string(result), `"cache_read_input_tokens":11`)
 }
 
 func TestClaudeToOpenAIConverter_ConvertThinkingConfig(t *testing.T) {
